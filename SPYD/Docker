@@ -1,61 +1,30 @@
-# Stage 1: Build the Node.js application 
-
-FROM node:16-alpine as builder 
-
+# Use the latest Maven image (which comes with OpenJDK as well)
+FROM maven:latest AS builder
  
-
-# Set the working directory 
-
-WORKDIR /Spyd-main 
-
+# Set the working directory inside the container
+WORKDIR /SPYD
  
-
-# Copy package.json and package-lock.json for caching 
-
-COPY package*.json ./ 
-
+# Copy the pom.xml and the source code into the container (adjusting path based on your file structure)
+COPY SPYD/pom.xml .
+COPY SPYD/src ./src
  
-
-# Install dependencies 
-
-RUN npm install 
-
+# Run Maven to download dependencies and build the project (this will create the target directory)
+RUN mvn clean package -DskipTests
  
-
-# Add the rest of the application code 
-
-COPY . . 
-
+# Debug: List the contents of the /SPYD/target directory to verify the JAR file exists
+RUN ls /SPYD/target
  
-
-# Build the application 
-
-RUN npm run build 
-
+# Stage 2: Create the final image from a clean base image
+FROM openjdk:17-jdk-slim
  
-
-# Stage 2: Set up Nginx to serve the application 
-
-FROM nginx:latest 
-
+# Set the working directory inside the container
+WORKDIR /SPYD
  
-
-# Copy the built app files from the builder stage 
-
-COPY --from=builder /Spyd-main/dist /usr/share/nginx/html 
-
+# Copy the JAR file from the builder stage into the final image
+COPY --from=builder /SPYD/target/SPYD-0.0.1-SNAPSHOT.jar /SPYD/spyd-backend.jar
  
-
-# Expose port 80 
-
-EXPOSE 80 
-
-# Expose port 5173 
-
-EXPOSE 5173 
-
+# Expose port 8080 for the application
+EXPOSE 80
  
-
-# Run Nginx to serve the app 
-
-CMD ["nginx", "-g", "daemon off;"] 
+# Command to run the application
+ENTRYPOINT ["java", "-jar", "/SPYD/spyd-backend.jar"]
